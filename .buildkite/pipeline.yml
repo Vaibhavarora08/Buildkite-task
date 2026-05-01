@@ -17,6 +17,6 @@ steps:
   - label: ":rocket: Run"
     command:
       - "buildkite-agent artifact download hello-bin ."
-      - "chmod +x hello-bin"
+      - "chmod +x /workspace/hello-bin"
       - "NAME=$(buildkite-agent meta-data get user-name)"
-      - "./hello-bin $NAME"
+      - "./workspace/hello-bin $NAME"
