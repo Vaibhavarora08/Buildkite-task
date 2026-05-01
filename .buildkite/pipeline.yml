@@ -2,7 +2,7 @@ steps:
   - label: ":golang: Build"
     command:
       - "cd hello && go build -o ../hello-bin ."
-      - "buildkite-agent artifact upload hello-bin"
+      - "buildkite-agent artifact upload /workspace/hello-bin"
     plugins:
       - docker#v5.3.0:
           image: "golang:1.18.0"
