@@ -20,5 +20,4 @@ steps:
         buildkite-agent artifact download workspace/hello-bin .
         chmod +x workspace/hello-bin
         NAME=$$(buildkite-agent meta-data get user-name)
-        echo "Name is $$NAME"
         ./workspace/hello-bin "$$NAME"
