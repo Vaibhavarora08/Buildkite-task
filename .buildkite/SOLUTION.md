@@ -1,247 +1,150 @@
-
 ## Executive Summary
 
-Engineering teams scaling their delivery pipelines face three recurring
-challenges: inconsistent build environments that cause hard-to-reproduce
-failures, fragile state management between pipeline stages, and CI
-infrastructure that demands ongoing maintenance overhead.
+Engineering teams scaling their delivery pipelines consistently face
+three problems: **inconsistent build environments** that cause failures
+that are hard to reproduce, **unreliable state transfer** between
+pipeline stages, and **CI infrastructure that becomes a maintenance
+burden** rather than an enabler.
 
-This document demonstrates how Buildkite addresses all three through a
-working pipeline implementation — and maps those technical capabilities
-to the business outcomes that matter to engineering leadership.
-
----
-
-## Business Context
-
-As organisations grow their engineering function, CI/CD infrastructure
-becomes a bottleneck rather than an enabler. The symptoms are familiar:
-
-- Builds that pass locally but fail in CI due to environment differences
-- Pipeline failures caused by state not transferring reliably between stages
-- Engineering time spent maintaining build servers rather than shipping product
-- Security and compliance gaps in how build infrastructure is accessed
-  and audited
-- Sensitive source code and build artifacts leaving the organisation's
-  own environment to run on third-party compute
-
-These are not tooling problems. They are business risk problems — they
-slow release velocity, introduce compliance exposure, and erode
-engineering confidence in the delivery pipeline.
+This pipeline implementation demonstrates how Buildkite solves all
+three — and maps each decision directly to the business outcome it
+produces.
 
 ---
 
 ## Why Buildkite
 
-The CI/CD market is crowded. The decision to evaluate Buildkite over
-alternatives such as GitHub Actions, Jenkins, CircleCI, or GitLab CI
-warrants a clear rationale. Three factors differentiate Buildkite
-at an architectural level — not a feature level.
+The core differentiator is architectural, not feature-based.
+**Buildkite separates the control plane from the compute layer.**
+The orchestration is managed by Buildkite; the agents run inside
+the organisation's own environment. Source code, build artifacts,
+and secrets never leave the customer's infrastructure — a structural
+guarantee that fully managed platforms like GitHub Actions or
+CircleCI cannot offer regardless of their compliance certifications.
 
-**1. The hybrid model is a genuine architectural advantage**
-
-Most CI/CD platforms make a binary choice: fully managed SaaS (GitHub
-Actions, CircleCI) where compute runs on the vendor's infrastructure,
-or fully self-hosted (Jenkins) where the organisation owns everything
-including the control plane.
-
-Buildkite takes a third position. The control plane — scheduling,
-orchestration, the web interface, build history — is managed by
-Buildkite. The compute — the agents that actually run builds — lives
-inside the organisation's own environment. AWS, GCP, Azure, on-premise,
-or any combination.
-
-The business implication is significant: source code, build artifacts,
-environment variables, and secrets never leave the organisation's
-infrastructure. The vendor never touches the data. This is not a
-compliance checkbox — it is a structural guarantee.
-
-For organisations in regulated industries (financial services,
-healthcare, defence) or those with enterprise customers who audit
-their supply chain, this architecture removes an entire category of
-risk that fully managed platforms cannot address regardless of their
-certifications.
-
-**2. Security is a first-class design decision, not a feature addition**
-
-GitHub Actions and CircleCI were designed for developer convenience
-first and hardened over time. Buildkite was designed with the
-assumption that build infrastructure is security-critical infrastructure.
-
-The practical differences are visible at every layer:
-
-- Agent communication is outbound-only from the agent to Buildkite.
-  No inbound ports need to be opened on agent infrastructure. The
-  attack surface is structurally smaller.
-- Clustered queues enforce environment isolation at the scheduler
-  level — a development build cannot be routed to a production agent
-  by misconfiguration.
-- Pipeline signing allows organisations to cryptographically verify
-  that pipeline steps have not been tampered with between definition
-  and execution — directly addressing supply chain attack vectors.
-- Secrets never pass through Buildkite's infrastructure. They are
-  retrieved by the agent from the organisation's own secrets store
-  (AWS Secrets Manager, HashiCorp Vault) at runtime.
-
-**3. Scale without the Jenkins tax**
-
-Jenkins remains the default for organisations that need self-hosted
-compute, but it carries a significant operational burden: plugin
-management, agent maintenance, Groovy DSL complexity, and a security
-model that requires continuous attention.
-
-Buildkite provides self-hosted compute without the Jenkins tax. The
-agent is a single lightweight binary. Pipelines are defined in clean
-YAML. Plugins are versioned and maintained by Buildkite and the
-community. The control plane scales automatically — organisations
-running tens of thousands of builds per day do not manage that
-infrastructure themselves.
-
-The commercial outcome: engineering teams get self-hosted security
-posture at SaaS operational overhead. That combination does not exist
-elsewhere in the market at Buildkite's maturity level.
+For organisations in regulated industries or with enterprise customers
+who audit their software supply chain, **this is not a nice-to-have —
+it is a procurement requirement.**
 
 ---
 
 ## Solution Overview
 
-A three-step pipeline was implemented and validated end-to-end,
-demonstrating Buildkite's core capabilities in a working context.
+A three-step pipeline implemented and validated end-to-end against
+the provided Go application, connected via **real GitHub webhook
+triggers** — reflecting how a customer would use Buildkite from day one.
 
 Forked from: https://github.com/mkmrgn/example  
 Solution repo: https://github.com/Vaibhavarora08/Buildkite-task/blob/main/.buildkite/SOLUTION.md
 
-The pipeline was connected via GitHub webhook — reflecting how a
-customer would experience Buildkite from day one, with builds
-triggered automatically on every code push.
-
-**Pipeline flow:**
-
-| Step | What happens | Business capability demonstrated |
-|---|---|---|
-| Build | Go binary compiled inside an isolated Docker container | Consistent, reproducible builds regardless of agent configuration |
-| Review | Pipeline pauses for human input before proceeding | Approval gates for change control and release management workflows |
-| Execute | Binary retrieved and run with validated input | Reliable artifact promotion between pipeline stages |
-
-**Outcome:** `Hello, Vaibhav Arora!` printed in the final job log,
-confirming end-to-end pipeline execution. Screenshot enclosed.
-
 ---
 
-## How Buildkite Capabilities Deliver Business Value
+## Pipeline — Task to Implementation Mapping
 
-**Isolated build environments**  
-Using the Buildkite Docker plugin, the build runs inside a
-`golang:1.18.0` container — no language runtime required on the host
-agent. Every build runs in an identical environment regardless of which
-agent picks it up.
+This section maps each task requirement directly to the Buildkite
+concept used, the implementation decision made, and the business
+outcome it produces.
 
-Business impact: eliminates the class of failures caused by environment
-drift between agents — a leading cause of unreliable pipelines in
-Jenkins-based setups. Reduces debugging time and increases developer
-confidence in build results.
+**Step 1 — Build the Go binary inside a Docker container**
 
-**Clean state management between steps**  
-Buildkite provides two native mechanisms for passing state between
-pipeline steps: an artifact store for files and binaries, and a
-metadata store for lightweight key-value data. Each serves a distinct
-purpose and neither requires external infrastructure.
+| | |
+|---|---|
+| **Task requirement** | Build the Go application and upload the binary as a Buildkite artifact |
+| **Buildkite concept** | Docker plugin + artifact store |
+| **Implementation** | `golang:1.18.0` container via the Buildkite Docker plugin. Binary compiled as `hello-bin` and uploaded to the Buildkite artifact store using `buildkite-agent artifact upload` |
+| **Key decision** | Used `mount-buildkite-agent: true` in the plugin config — without this the Buildkite agent binary is unavailable inside the container and artifact upload fails. No Go installation required on the host agent |
+| **Business outcome** | **Every build runs in an identical, isolated environment regardless of which agent picks it up.** Eliminates the environment drift that causes unreliable builds in Jenkins setups where build tooling lives on the agent itself |
 
-Business impact: teams do not need to provision and maintain external
-storage to share build outputs between stages. Reduces architectural
-complexity and eliminates a common source of pipeline fragility.
+**Step 2 — Block step for user input**
 
-**Human approval gates**  
-The block step pauses pipeline execution and requires explicit human
-sign-off before proceeding — with structured form input captured
-directly in the Buildkite interface.
+| | |
+|---|---|
+| **Task requirement** | Pause the pipeline and allow a user to enter their name |
+| **Buildkite concept** | Block step + metadata store |
+| **Implementation** | Block step with a structured text field (`key: user-name`). Value stored automatically in Buildkite's metadata store, scoped to the build |
+| **Key decision** | Metadata is the right tool here — lightweight, scoped to the build lifetime, no external infrastructure needed. The artifact store is for files; metadata is for key-value state |
+| **Observation** | **Block steps have no native timeout** — a pipeline waiting for approval waits indefinitely. Production mitigation: a watchdog job calling the Buildkite REST API to cancel after N minutes. Worth surfacing early with customers who have SLA commitments on their release pipelines |
+| **Business outcome** | **Human approval gates map directly to existing change control and release management workflows** — without requiring custom tooling or external approval systems |
 
-Business impact: maps directly to existing change management and release
-approval processes. Compliance-sensitive organisations can enforce
-four-eyes principles on deployments without building custom tooling.
+**Step 3 — Download artifact and execute with user input**
 
-**Agent isolation by environment**  
-Buildkite's clustered queue model ensures builds run only on agents
-explicitly configured for that environment. A development build cannot
-be picked up by a production agent.
+| | |
+|---|---|
+| **Task requirement** | Download the binary from Step 1 and run it with the name from Step 2 |
+| **Buildkite concept** | Artifact download + metadata retrieval |
+| **Implementation** | `buildkite-agent artifact download workspace/hello-bin .` followed by `buildkite-agent meta-data get user-name`. Binary executed as `./hello-bin "$NAME"` |
+| **Key decision** | `$$NAME` not `$NAME` — Buildkite interpolates environment variables at **pipeline parse time**, not shell runtime. `$$` defers resolution to the shell. Caught through an empty value in the job logs |
+| **Business outcome** | **The exact binary built in Step 1 is promoted to Step 3** — no recompilation, no risk of code changing between steps. This is the artifact promotion pattern that underpins reliable deployment pipelines |
 
-Business impact: a foundational control for organisations with
-environment separation requirements — relevant to SOC2, ISO 27001,
-and internal change management policies.
-
+**Final output:**
+![Step 3 job log output](./pipeline-output.png)
 ---
 
 ## Infrastructure and Security Posture
 
-The agent infrastructure was configured to reflect the security
-standards appropriate for a production Buildkite deployment.
+**Zero inbound ports — SSM Session Manager instead of SSH**  
+Port 22 is closed. No key pairs. Agent access managed entirely through
+AWS Systems Manager Session Manager with IAM role authentication.
+**Every session is logged through CloudTrail** — a full audit trail
+of who accessed what and when, with no additional tooling required.
 
-**No SSH access — zero open inbound ports**  
-Agent access is managed entirely through AWS Systems Manager Session
-Manager. Port 22 is closed. There are no SSH key pairs to manage,
-rotate, or audit. Every session is logged through AWS CloudTrail,
-providing a complete audit trail of who accessed what and when.
+**IMDSv2 enforced, hop limit 1**  
+Protects against SSRF attacks — the same vulnerability class behind
+several high-profile cloud breaches. Hop limit of 1 ensures containers
+on the instance cannot reach the metadata endpoint, **preventing
+container escape scenarios without any application-level changes.**
 
-**Instance Metadata Service hardened**  
-IMDSv2 enforced with a hop limit of 1. This protects against
-server-side request forgery attacks — the same vulnerability class
-behind several high-profile cloud breaches — and prevents containers
-running on the instance from accessing the metadata endpoint.
+**Amazon Linux 2023 over Ubuntu**  
+AWS-native, SSM Agent pre-installed, longer support lifecycle, and
+better security defaults out of the box. The right default for any
+customer running Buildkite agents on AWS.
 
-**Right-sized for purpose**  
-t3.micro on-demand instance on Amazon Linux 2023. Kept stopped when
-not in use to avoid idle cost. No over-engineering for a validation
-deployment — the right infrastructure decision at each stage of maturity.
-
----
-
-## Observations Worth Noting
-
-Three behaviours surfaced during implementation that are relevant to
-customer onboarding conversations.
-
-**Pipeline variable interpolation**  
-Buildkite evaluates environment variables at pipeline parse time rather
-than shell execution time. Teams migrating from GitHub Actions or Jenkins
-will encounter this difference early. Clear onboarding support at this
-point prevents unnecessary friction during initial adoption.
-
-**Docker plugin agent availability**  
-The Buildkite agent binary must be explicitly mounted into Docker
-containers for artifact operations to function. Customers adopting
-Docker-based builds will encounter this in their first pipeline.
-A guided setup path or pre-configured base image would reduce
-time-to-first-success for this segment.
-
-**Block step timeout behaviour**  
-Native timeout controls do not apply to block steps — a pipeline
-waiting for human approval will remain in that state indefinitely
-until actioned or cancelled. For customers with automated release
-pipelines and SLA commitments, this requires a workaround via the
-Buildkite REST API. Worth surfacing early in customer conversations
-to set expectations and demonstrate the available mitigation path.
+**EC2 kept stopped when not in use**  
+Eliminates idle compute cost for a validation deployment. In production
+this is solved structurally — see Path to Production below.
 
 ---
 
 ## Path to Production
 
-The implementation above represents a validation deployment. The
-table below outlines how each component evolves as a customer moves
-toward production scale.
-
 | Area | Validation deployment | Production deployment |
 |---|---|---|
-| Agent infrastructure | Single persistent EC2, stopped when idle | Ephemeral agents on Spot instances — no idle cost, automatic retry on termination |
-| Artifact storage | Buildkite managed store | Customer-owned S3 bucket with KMS encryption — satisfies data residency and encryption key control requirements |
-| Secrets management | Buildkite metadata | AWS SSM Parameter Store — IAM-controlled access, encryption at rest, full audit trail |
-| Network architecture | Default public subnet | Private subnet with NAT Gateway and VPC endpoints — build traffic contained within customer VPC |
-| Pipeline triggers | Manual and webhook | Webhook-driven with branch filtering, PR builds, and environment promotion gates |
-| Agent access | SSM Session Manager | SSM Session Manager with session logging to S3 and CloudWatch |
+| **Agent infrastructure** | Single persistent EC2, stopped when idle | **Ephemeral agents** — spin up per build, terminate after. Spot-viable because Buildkite retries automatically on termination. Zero idle cost |
+| **Agent compute** | Single EC2 instance | **ECS or EKS** for agent orchestration at scale — ECS for simplicity, EKS where the organisation already runs Kubernetes workloads. Buildkite's agent stack supports both natively |
+| **Base image** | Standard Amazon Linux 2023 | **Golden AMI** — pre-baked with Docker, Buildkite agent, security tooling, and compliance controls. Eliminates bootstrap time per agent and ensures every agent starts from a known-good, audited baseline |
+| **Artifact storage** | Buildkite managed store | **Customer-owned S3 bucket with KMS** — data residency guaranteed, encryption keys owned by the customer, bucket policies enforced. Satisfies SOC2, HIPAA, ISO 27001 artifact requirements |
+| **Secrets management** | Buildkite metadata | **AWS Secrets Manager or SSM Parameter Store** — IAM-controlled access, encryption at rest, rotation policies, full audit trail |
+| **Network architecture** | Default public subnet | **Private subnet with NAT Gateway and S3 VPC endpoints** — build traffic never traverses the public internet |
+| **Pipeline triggers** | Webhook on push | **Webhook-driven with branch filtering, PR builds, and environment promotion gates** |
+| **Binary integrity** | No signing | **GPG or Sigstore/cosign signing** — artifact signed at build time, signature verified before execution. Directly addresses software supply chain requirements |
 
-The pipeline definition itself requires no changes as infrastructure
-matures. Buildkite's separation of pipeline logic from execution
-infrastructure means organisations can adopt incrementally and harden
-their environment without disrupting existing workflows — a significant
-advantage during enterprise onboarding and a key differentiator from
-platforms where infrastructure assumptions are embedded in the pipeline
-configuration itself.
+**The pipeline definition itself requires no changes as infrastructure
+matures.** Buildkite's separation of pipeline logic from execution
+infrastructure means organisations adopt incrementally — start with a
+single EC2, move to ephemeral ECS agents, introduce golden AMIs and
+artifact signing — without rewriting a single pipeline step.
+
+---
+
+## Observations for Customer Onboarding
+
+Three behaviours encountered during implementation that will surface
+in customer conversations:
+
+**Variable interpolation difference from other CI platforms**  
+Buildkite evaluates `$VAR` at pipeline parse time. Teams migrating
+from GitHub Actions or Jenkins encounter this early. **A clear
+explanation at onboarding prevents it becoming a trust issue** with
+the platform.
+
+**Docker builds require explicit agent mounting**  
+`mount-buildkite-agent: true` must be set for artifact operations
+to work inside containers. **Customers adopting Docker-based builds
+will hit this in their first pipeline** — a guided setup path or
+pre-configured base image removes this friction entirely.
+
+**Block step timeout is a known gap**  
+No native timeout on block steps. **Worth raising proactively** with
+customers who have automated release pipelines or on-call SLAs,
+along with the REST API workaround, rather than waiting for them
+to discover it themselves.
