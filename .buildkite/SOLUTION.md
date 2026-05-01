@@ -35,7 +35,7 @@ the provided Go application, connected via **real GitHub webhook
 triggers** — reflecting how a customer would use Buildkite from day one.
 
 Forked from: https://github.com/mkmrgn/example  
-Solution repo: https://github.com/Vaibhavarora08/Buildkite-task/blob/main/.buildkite/SOLUTION.md
+Solution repo: https://github.com/Vaibhavarora08/Buildkite-task
 
 ---
 
@@ -52,7 +52,7 @@ outcome it produces.
 | **Task requirement** | Build the Go application and upload the binary as a Buildkite artifact |
 | **Buildkite concept** | Docker plugin + artifact store |
 | **Implementation** | `golang:1.18.0` container via the Buildkite Docker plugin. Binary compiled as `hello-bin` and uploaded to the Buildkite artifact store using `buildkite-agent artifact upload` |
-| **Key decision** | Used `mount-buildkite-agent: true` in the plugin config — without this the Buildkite agent binary is unavailable inside the container and artifact upload fails. No Go installation required on the host agent |
+| **Key decision** | Non-obvious requirement: `mount-buildkite-agent: true` is mandatory for artifact operations inside Docker. Without it, the pipeline fails at runtime — a common first-run failure for teams adopting containerised builds. Go was deliberately not installed on the host to eliminate agent-level drift entirely, even at the cost of slightly longer build startup time |
 | **Business outcome** | **Every build runs in an identical, isolated environment regardless of which agent picks it up.** Eliminates the environment drift that causes unreliable builds in Jenkins setups where build tooling lives on the agent itself |
 
 **Step 2 — Block step for user input**
@@ -62,7 +62,7 @@ outcome it produces.
 | **Task requirement** | Pause the pipeline and allow a user to enter their name |
 | **Buildkite concept** | Block step + metadata store |
 | **Implementation** | Block step with a structured text field (`key: user-name`). Value stored automatically in Buildkite's metadata store, scoped to the build |
-| **Key decision** | Metadata is the right tool here — lightweight, scoped to the build lifetime, no external infrastructure needed. The artifact store is for files; metadata is for key-value state |
+| **Key decision** | Metadata chosen over external storage to keep the pipeline self-contained — optimising for simplicity over cross-build persistence. The artifact store is for files; metadata is for key-value state |
 | **Observation** | **Block steps have no native timeout** — a pipeline waiting for approval waits indefinitely. Production mitigation: a watchdog job calling the Buildkite REST API to cancel after N minutes. Worth surfacing early with customers who have SLA commitments on their release pipelines |
 | **Business outcome** | **Human approval gates map directly to existing change control and release management workflows** — without requiring custom tooling or external approval systems |
 
@@ -73,14 +73,21 @@ outcome it produces.
 | **Task requirement** | Download the binary from Step 1 and run it with the name from Step 2 |
 | **Buildkite concept** | Artifact download + metadata retrieval |
 | **Implementation** | `buildkite-agent artifact download workspace/hello-bin .` followed by `buildkite-agent meta-data get user-name`. Binary executed as `./hello-bin "$NAME"` |
-| **Key decision** | `$$NAME` not `$NAME` — Buildkite interpolates environment variables at **pipeline parse time**, not shell runtime. `$$` defers resolution to the shell. Caught through an empty value in the job logs |
+| **Key decision** | `$$NAME` not `$NAME` — Buildkite interpolates environment variables at **pipeline parse time**, not shell runtime. `$$` defers resolution to the shell. Rebuilding was intentionally avoided to guarantee artifact immutability across steps |
 | **Business outcome** | **The exact binary built in Step 1 is promoted to Step 3** — no recompilation, no risk of code changing between steps. This is the artifact promotion pattern that underpins reliable deployment pipelines |
 
 **Final output:**
+
 ![Step 3 job log output](./Buildkite.png)
+
 ---
 
 ## Infrastructure and Security Posture
+
+This setup intentionally prioritises validation over optimisation.
+A single EC2 agent was sufficient to prove pipeline correctness before
+introducing ephemeral infrastructure — avoiding premature complexity
+while keeping the path to production unchanged.
 
 **Zero inbound ports — SSM Session Manager instead of SSH**  
 Port 22 is closed. No key pairs. Agent access managed entirely through
@@ -120,9 +127,12 @@ this is solved structurally — see Path to Production below.
 
 **The pipeline definition itself requires no changes as infrastructure
 matures.** Buildkite's separation of pipeline logic from execution
-infrastructure means organisations adopt incrementally — start with a
-single EC2, move to ephemeral ECS agents, introduce golden AMIs and
-artifact signing — without rewriting a single pipeline step.
+infrastructure means organisations adopt incrementally — without
+rewriting a single pipeline step.
+
+At scale, the primary failure mode shifts from build errors to state
+integrity between steps — making artifact validation and idempotent
+retries more critical than build logic itself.
 
 ---
 
@@ -148,3 +158,9 @@ No native timeout on block steps. **Worth raising proactively** with
 customers who have automated release pipelines or on-call SLAs,
 along with the REST API workaround, rather than waiting for them
 to discover it themselves.
+
+---
+
+The focus throughout was not just to build a working pipeline, but
+to demonstrate how design decisions map to real-world engineering
+and business outcomes.
