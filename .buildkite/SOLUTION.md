@@ -77,7 +77,7 @@ outcome it produces.
 | **Business outcome** | **The exact binary built in Step 1 is promoted to Step 3** — no recompilation, no risk of code changing between steps. This is the artifact promotion pattern that underpins reliable deployment pipelines |
 
 **Final output:**
-![Step 3 job log output](./pipeline-output.png)
+![Step 3 job log output](./Buildkite.png)
 ---
 
 ## Infrastructure and Security Posture
