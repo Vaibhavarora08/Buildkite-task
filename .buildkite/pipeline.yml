@@ -16,10 +16,9 @@ steps:
 
   - label: ":rocket: Run"
     command:
-      - "buildkite-agent artifact download workspace/hello-bin ."
-      - "chmod +x workspace/hello-bin"
-      - "buildkite-agent meta-data exists user-name && echo EXISTS || echo NOT FOUND"
-      - "buildkite-agent meta-data get user-name"
-      - "NAME=$(buildkite-agent meta-data get user-name)"
-      - "echo Name is $NAME"
-      - "./workspace/hello-bin \"$NAME\""
+      - |
+        buildkite-agent artifact download workspace/hello-bin .
+        chmod +x workspace/hello-bin
+        NAME=$(buildkite-agent meta-data get user-name)
+        echo "Name is $NAME"
+        ./workspace/hello-bin "$NAME"
