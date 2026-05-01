@@ -1,15 +1,13 @@
 steps:
   - label: ":golang: Build"
     command:
+      - "cd hello && go build -o hello ."
       - "buildkite-agent artifact upload hello/hello"
     plugins:
       - docker#v5.3.0:
           image: "golang:1.18.0"
           workdir: /workspace
-          command:
-            - "sh"
-            - "-c"
-            - "cd hello && go build -o hello ."
+          mount-buildkite-agent: true
 
   - block: ":wave: Enter Your Name"
     fields:
