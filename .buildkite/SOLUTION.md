@@ -4,7 +4,8 @@
 Three-step pipeline working end-to-end. Final job log prints 
 `Hello, Vaibhav Arora!` as required. Screenshot attached in email.
 
-Repo: [your forked repo URL]
+Forked from: https://github.com/mkmrgn/example  
+Solution repo: https://github.com/Vaibhavarora08/Buildkite-task/blob/main/.buildkite/SOLUTION.md
 
 ---
 
@@ -64,9 +65,3 @@ endpoints so build traffic never hits the public internet.
 Skipped golden Docker image, binary signing, and private subnet — each 
 adds real production value but would have been over-engineered for a 
 demo. Noted where each would apply in a customer context.
-
----
-
-## Note on pipeline.yml
-Initial structure drafted with AI assistance. All infrastructure 
-decisions, debugging, and fixes worked through independently.
