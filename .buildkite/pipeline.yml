@@ -1,0 +1,21 @@
+steps:
+  - label: ":golang: Build"
+    command:
+      - "cd hello && go build -o hello ."
+      - "buildkite-agent artifact upload hello/hello"
+    plugins:
+      - docker#v5.3.0:
+          image: "golang:1.18.0"
+          workdir: /workspace
+
+  - block: ":wave: Enter Your Name"
+    fields:
+      - text: "What is your name?"
+        key: "user-name"
+
+  - label: ":rocket: Run"
+    command:
+      - "buildkite-agent artifact download hello/hello ."
+      - "chmod +x hello/hello"
+      - "NAME=$(buildkite-agent meta-data get user-name)"
+      - "./hello/hello $NAME"
