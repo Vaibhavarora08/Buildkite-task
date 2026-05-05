@@ -1,3 +1,5 @@
+agents:
+    queue: test-buildkite
 steps:
   - label: ":golang: Build"
     command:
